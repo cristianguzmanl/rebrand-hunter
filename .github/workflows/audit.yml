@@ -1,0 +1,49 @@
+name: Audit & Publish
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'leads.csv'
+      - '**/*.js'
+      - 'package.json'
+  schedule:
+    - cron: '20 2 * * *'  # corre cada día 02:20 UTC
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install deps
+        run: npm ci || npm i
+
+      - name: Install Playwright (with deps)
+        run: npx playwright install --with-deps
+
+      - name: Run audit
+        run: node index.js --input leads.csv --concurrency 3
+
+      - name: Generate HTML report
+        run: node tools/report.js
+
+      - name: Upload artifact (out/)
+        uses: actions/upload-artifact@v4
+        with:
+          name: out
+          path: out
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: out
+          force_orphan: true
